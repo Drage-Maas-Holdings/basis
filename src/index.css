@@ -1,111 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --bg-base:        #F4F6FA;
+  --bg-surface:     #FFFFFF;
+  --bg-surface-2:   #EEF1F7;
+  --border:         #D0D7E3;
+  --text-primary:   #1B2A4A;
+  --text-secondary: #5A6A8A;
+  --text-muted:     #9AAABF;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --brand-navy:     #1B2A4A;
+  --brand-blue:     #2E4D8A;
+  --brand-teal:     #1D7874;
+  --brand-orange:   #E07B39;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --win-bg:         #D6F5D6;
+  --win-text:       #1A5C1A;
+  --loss-bg:        #FAD4D4;
+  --loss-text:      #7A1A1A;
+  --pending-bg:     #FFF9C4;
+  --pending-text:   #6B5B00;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --shadow-card: 0 1px 3px rgba(27,42,74,0.08), 0 4px 16px rgba(27,42,74,0.04);
+  --shadow-fab:  0 4px 24px rgba(27,42,74,0.24);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+.dark {
+  --bg-base:        #0F1929;
+  --bg-surface:     #1B2A4A;
+  --bg-surface-2:   #243352;
+  --border:         #2E4068;
+  --text-primary:   #E8EDF5;
+  --text-secondary: #A0B0CC;
+  --text-muted:     #5A7099;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --brand-navy:     #2E4D8A;
+  --brand-blue:     #4A72CC;
+  --brand-teal:     #26A69A;
+  --brand-orange:   #F4924A;
+
+  --win-bg:         #1A3D1A;
+  --win-text:       #7AE87A;
+  --loss-bg:        #3D1A1A;
+  --loss-text:      #F08080;
+  --pending-bg:     #3D3800;
+  --pending-text:   #FFE066;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+html, body, #root {
+  height: 100%;
+  margin: 0;
 }
 
 body {
-  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
+* {
+  box-sizing: border-box;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+@layer components {
+  .kbd {
+    @apply inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono rounded border border-border bg-bg-surface-2 text-text-secondary;
+  }
+}
+
+/* react-day-picker overrides */
+.rdp {
+  --rdp-cell-size: 36px;
+  --rdp-accent-color: var(--brand-blue);
+  --rdp-background-color: var(--bg-surface-2);
+  margin: 0;
+}
+.rdp-day_selected,
+.rdp-day_selected:focus-visible,
+.rdp-day_selected:hover {
+  background-color: var(--brand-blue) !important;
+  color: white !important;
+}
+.rdp-day_today {
+  font-weight: 700;
+  color: var(--brand-orange);
+}
+.rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: var(--bg-surface-2);
+}
+.rdp-head_cell {
+  color: var(--text-secondary);
   font-weight: 500;
-  color: var(--text-h);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.rdp-caption_label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.rdp-nav_button {
+  color: var(--text-secondary);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+/* Pulsing animation for overdue */
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: inset 4px 0 0 0 var(--brand-orange); }
+  50% { box-shadow: inset 4px 0 0 0 var(--brand-orange), 0 0 0 0 rgba(224, 123, 57, 0.4); }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.overdue-pulse {
+  animation: pulse-amber 2s ease-in-out infinite;
 }
