@@ -1,73 +1,62 @@
-# React + TypeScript + Vite
+# Hyaku
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A local-first desktop web app for tracking two concurrent income streams — Forex/Gold day trading and IT services cold outreach — from a single dashboard.
 
-Currently, two official plugins are available:
+> 百 (hyaku) — Japanese for *hundred*, after the 100-prospect CRM goal.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Dashboard** — live KPIs, 14-trade sparkline, pipeline funnel, and activity feed
+- **Trading Journal** — sortable, paginated table for USD/JPY, GBP/JPY and XAU/USD with auto-calculated R-multiples and ZAR P&L
+- **IT Services CRM** — 100-prospect pipeline with stages, follow-up tracking, and overdue-next-action indicators
+- **Help system** — context-aware help drawer (the `?` button, bottom-right)
+- **System-aware theming** — light/dark follows your OS preference; no toggle
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Stack
 
-## Expanding the ESLint configuration
+- Vite + React 19 + TypeScript
+- Tailwind CSS (custom `prussian-blue` / `regal-navy` / `blue-slate` palette)
+- Open Sans (UI) + JetBrains Mono (numbers)
+- Express + better-sqlite3 (local data, no browser)
+- recharts, react-day-picker, lucide-react
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev script starts both the API server (port 3001) and Vite (port 5173) with the `/api` proxy wired up. Open <http://localhost:5173>.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Your data is stored at `data/hyaku.db` (gitignored).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | API server (`:3001`) + Vite dev server (`:5173`) with HMR |
+| `npm run build` | Type-check and produce a production build in `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run server` | Run the API server on its own (`:3001`) |
+| `npm run lint` | ESLint |
+
+## Project layout
+
 ```
+server/      Express + better-sqlite3 API (port 3001)
+  index.ts     app entry
+  db.ts        schema, migrations, triggers
+  routes/      trades, prospects, dashboard, activity
+src/
+  pages/       Dashboard, TradingJournal, CRM
+  components/  layout / ui / dashboard / trading / crm / help
+  hooks/       useTrades, useProspects, useDashboard
+  lib/         api, enums, formatters, calculations, helpContent
+  types/       shared TypeScript types
+data/         SQLite database (gitignored)
+```
+
+## License
+
+Private.
