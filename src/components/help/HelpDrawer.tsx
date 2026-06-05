@@ -46,7 +46,7 @@ export function HelpDrawer({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <span className="text-2xl">{help.icon}</span>
-            <h2 className="font-display text-lg text-text-primary">
+            <h2 className="font-display font-semibold text-lg text-text-primary">
               {help.title}
             </h2>
           </div>

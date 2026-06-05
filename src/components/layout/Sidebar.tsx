@@ -25,11 +25,11 @@ export function Sidebar() {
     >
       <div className="h-16 flex items-center px-4 border-b border-border">
         <div className="w-8 h-8 rounded-lg bg-brand-navy flex items-center justify-center text-white font-display text-lg shrink-0">
-          I
+          百
         </div>
         {expanded ? (
-          <span className="ml-2 font-display text-lg text-text-primary">
-            IncomeOps
+          <span className="ml-2 font-display font-semibold text-lg text-text-primary tracking-tight">
+            Hyaku
           </span>
         ) : null}
       </div>

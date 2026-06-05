@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Filter, X } from 'lucide-react';
+import { Plus, Filter, X, Maximize2, Minimize2 } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
@@ -21,6 +21,7 @@ export function CRM() {
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Prospect | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const {
     prospects,
@@ -69,6 +70,16 @@ export function CRM() {
         actions={
           <>
             <ProgressPill reached={totalReached} />
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={panelOpen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              onClick={() => setPanelOpen((o) => !o)}
+              title={panelOpen ? 'Hide pipeline summary' : 'Show pipeline summary'}
+              aria-pressed={!panelOpen}
+            >
+              {panelOpen ? 'Focus' : 'Show panel'}
+            </Button>
             <Button leftIcon={<Plus size={16} />} onClick={openAdd}>
               Add Prospect
             </Button>
@@ -76,8 +87,12 @@ export function CRM() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        <div>
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          panelOpen ? 'lg:grid-cols-[1fr_320px]' : ''
+        }`}
+      >
+        <div className="min-w-0">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-xl border border-border bg-bg-surface">
             <Input
               label="Search"
@@ -143,7 +158,11 @@ export function CRM() {
           )}
         </div>
 
-        <div>
+        <div
+          className={`min-w-0 ${
+            panelOpen ? 'lg:sticky lg:top-6 lg:self-start block' : 'hidden'
+          }`}
+        >
           <PipelineSummaryPanel summary={pipelineSummary} />
         </div>
       </div>

@@ -1,4 +1,4 @@
-# IncomeOps — Product Requirements Document & Technical Specification
+# Hyaku — Product Requirements Document & Technical Specification
 
 **Version:** 1.1  
 **Stack:** Vite · React · TypeScript · Tailwind CSS · SQLite (better-sqlite3)  
@@ -27,7 +27,7 @@
 
 ## 1. Product Overview
 
-**IncomeOps** is a local-first desktop web app (served by Vite dev server, or built and opened as a file) that helps a solo operator track two concurrent income streams:
+**Hyaku** is a local-first desktop web app (served by Vite dev server, or built and opened as a file) that helps a solo operator track two concurrent income streams:
 
 | Stream | View |
 |--------|------|
@@ -107,15 +107,15 @@ Apply dark mode via Tailwind's `darkMode: 'media'` strategy (respects `prefers-c
 ```ts
 // tailwind.config.ts fontFamily extension
 fontFamily: {
-  display: ['"DM Serif Display"', 'Georgia', 'serif'],
-  body:    ['"DM Sans"', 'system-ui', 'sans-serif'],
+  display: ['"Open Sans"', 'system-ui', 'sans-serif'],
+  body:    ['"Open Sans"', 'system-ui', 'sans-serif'],
   mono:    ['"JetBrains Mono"', 'monospace'],
 }
 ```
 
 Load from Google Fonts in `index.html`:
 ```html
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 ```
 
 ### 2.3 Spacing & Radius
@@ -159,7 +159,7 @@ Load from Google Fonts in `index.html`:
 | `Users` | IT Services CRM | `/crm` |
 
 - Active state: filled background `bg-brand-blue`, white text.
-- Sidebar header: app name **IncomeOps** in `font-display` when expanded; logo mark only when collapsed.
+- Sidebar header: app name **Hyaku** in `font-display` when expanded; logo mark only when collapsed.
 - Sidebar toggle: chevron icon at bottom of sidebar.
 
 ### 3.3 Top Bar (per page)
@@ -688,7 +688,7 @@ server/
 import Database from 'better-sqlite3';
 import path from 'path';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'incomeops.db');
+const DB_PATH = path.join(process.cwd(), 'data', 'hyaku.db');
 export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -1040,9 +1040,9 @@ src/components/
 ## 13. File & Folder Structure
 
 ```
-incomeops/
+hyaku/
 ├── data/                        ← SQLite DB lives here (gitignored)
-│   └── incomeops.db
+│   └── hyaku.db
 ├── server/
 │   ├── index.ts                 ← Express entry point (port 3001)
 │   ├── db.ts
@@ -1133,5 +1133,5 @@ Recommended sequence for the coding agent:
 
 ---
 
-*End of PRD & Specification — IncomeOps v1.1*  
+*End of PRD & Specification — Hyaku v1.1*  
 *Changelog: v1.1 — removed @tanstack/react-query and axios; replaced with native fetch wrapper (`src/lib/api.ts`) and plain useState/useEffect hooks. Added @types/express to devDependencies.*

@@ -11,7 +11,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'incomeops', time: new Date().toISOString() });
+  res.json({ ok: true, service: 'hyaku', time: new Date().toISOString() });
 });
 
 app.use('/api/trades', tradesRouter);
@@ -25,5 +25,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 app.listen(PORT, () => {
-  console.log(`IncomeOps API listening on http://localhost:${PORT}`);
+  console.log(`Hyaku API listening on http://localhost:${PORT}`);
 });
