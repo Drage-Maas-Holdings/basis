@@ -1,21 +1,24 @@
-# Contacts API - Implementation Report
+# Deals API - Implementation Report
 
 ## Implementation Summary
 
-**Spec:** `specs/spec_4.md` — Contacts API
-**Files Created:** `api/src/routes/contacts.ts`
-**Files Modified:** `api/src/index.ts`, `api/src/routes/contacts.ts`, `api/package.json`
-**Files Added:** `api/scripts/migrate-contact-ids.mjs`
+**Spec:** `specs/spec_5.md` — Deals API
+
+**Files Created:**
+- `api/src/routes/deals.ts` — All deals CRUD, stage transitions, and filter routes
+
+**Files Modified:**
+- `api/src/index.ts` — Registered deals routes
 
 ### Endpoints Implemented
 
 | Method | Path | Status | Description |
 |--------|------|--------|-------------|
-| POST | /contacts | 201 | Create a contact |
-| GET | /contacts | 200 | List contacts (search/filter/pagination) |
-| GET | /contacts/:id | 200/404 | Get single contact |
-| PUT | /contacts/:id | 200/403/404 | Update a contact |
-| DELETE | /contacts/:id | 204/403/404 | Delete a contact |
+| POST | /deals | 201 | Create a deal |
+| GET | /deals | 200 | List deals (filter/pagination) |
+| GET | /deals/:id | 200/404 | Get single deal (includes linked contact) |
+| PUT | /deals/:id | 200/400/403/404 | Update a deal, including stage transitions |
+| DELETE | /deals/:id | 204/403/404 | Delete a deal |
 
 ### Build & Lint
 
@@ -24,151 +27,416 @@
 
 ---
 
-## Verification Outcome
+## Acceptance Criteria — Raw Verification
 
-### Deviation Found: UUID v4 used instead of cuid
+### AC-1: All endpoints protected by auth middleware (401)
 
-**Spec requirement (Spec 2 + Spec 4):** Contact IDs must be cuids generated in the application layer.
+```
+$ curl -s -X POST http://localhost:3000/deals \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Test"}'
 
-**Implementation reality:** `api/src/routes/contacts.ts:22` used `crypto.randomUUID()` producing UUID v4 strings.
+{"error":"Unauthorized"}
 
-**Existing data (migrated):**
+$ curl -s http://localhost:3000/deals
 
-| Old UUID (v4) | New cuid2 | Name |
-|---------------|-----------|------|
-| `88063e31-4922-487f-9116-e22a082fac8e` | `f58nzd8jmt86u4o78y7l2et1` | John Doe Updated |
-| `a7abb786-5c48-44e1-be1d-8b657c46f1f8` | `y01vo0xckqv4j0osxvu7389m` | Bob Wilson |
+{"error":"Unauthorized"}
 
-**Fix applied:**
-1. Installed `@paralleldrive/cuid2`
-2. Replaced `crypto.randomUUID()` → `createId()` in `contacts.ts:23`
-3. Ran migration script to re-generate existing UUIDs as cuid2 (no foreign key references existed)
-4. Verified new POST creates cuid2 IDs (e.g. `tsm4zi0kiyvsuz41b1ju5i2l`)
+$ curl -s http://localhost:3000/deals/some-id
+
+{"error":"Unauthorized"}
+
+$ curl -s -X PUT http://localhost:3000/deals/some-id \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Test"}'
+
+{"error":"Unauthorized"}
+
+$ curl -s -X DELETE http://localhost:3000/deals/some-id
+
+{"error":"Unauthorized"}
+```
+
+**Result:** All five endpoints return `{"error":"Unauthorized"}` without a valid session. ✓
 
 ---
 
-## Test Results
-
-### Authentication (401)
+### AC-2: POST /deals creates with server-generated cuid, sets owner_id, timestamps, defaults stage to "new"
 
 ```
-GET  /contacts          → {"error": "Unauthorized"}  ✓
-POST /contacts          → {"error": "Unauthorized"}  ✓
-```
-
-### POST /contacts — Create
-
-| Test | Input | Expected | Actual | Status |
-|------|-------|----------|--------|--------|
-| Create contact | `{name, email, phone, company, notes}` | 201 + record | 201 + record | ✓ |
-| Create contact (minimal) | `{name}` | 201 + record | 201 + record | ✓ |
-| Missing name | `{email}` | 400 | `{"error": "Name is required"}` | ✓ |
-
-**Created records (after migration to cuid2):**
-- `f58nzd8jmt86u4o78y7l2et1` — John Doe Updated (Acme Corp)
-- `y01vo0xckqv4j0osxvu7389m` — Bob Wilson (Other Inc)
-
-### GET /contacts — List & Search
-
-| Test | Query | Expected | Actual | Status |
-|------|-------|----------|--------|--------|
-| List all | — | 2 contacts, total: 2 | ✓ | ✓ |
-| Search by name | `?search=John` | 1 contact | ✓ | ✓ |
-| Search by email | `?search=john@` | 1 contact | ✓ | ✓ |
-| Search by company | `?search=Acme` | 1 contact | ✓ | ✓ |
-| Filter by company | `?company=Acme Corp` | 1 contact (exact) | ✓ | ✓ |
-| No results | `?search=nonexistent` | empty array, total: 0 | ✓ | ✓ |
-
-### GET /contacts — Pagination
-
-| Test | Params | Expected | Actual | Status |
-|------|--------|----------|--------|--------|
-| Default | — | limit: 25, offset: 0 | ✓ | ✓ |
-| Page 1 | `?limit=2&offset=0` | 2 contacts, total: 2 | ✓ | ✓ |
-| Page 2 | `?limit=2&offset=2` | 0 contacts, total: 2 | ✓ | ✓ |
-| Cap at 100 | `?limit=200` | limit: 100 | ✓ | ✓ |
-
-### GET /contacts/:id — Get Single
-
-| Test | ID | Expected | Actual | Status |
-|------|----|----------|--------|--------|
-| Found | `f58nzd8jmt86u4o78y7l2et1` | 200 + record | ✓ | ✓ |
-| Not found | `nonexistent-id` | 404 `{"error": "Contact not found"}` | ✓ | ✓ |
-
-### PUT /contacts/:id — Update
-
-| Test | Body | Expected | Actual | Status |
-|------|------|----------|--------|--------|
-| Update own | `{name, notes}` | 200 + updated record, new timestamp | ✓ | ✓ |
-| Not found | `{name}` | 404 `{"error": "Contact not found"}` | ✓ | ✓ |
-| Not owner (403) | `{name}` | 403 `{"error": "Forbidden"}` | ✓ | ✓ |
-
-**Verified:** `ownerId` and `id` not modified by PUT.
-
-### DELETE /contacts/:id — Delete
-
-| Test | Expected | Actual | Status |
-|------|----------|--------|--------|
-| Not owner | 403 | ✓ | ✓ |
-| Not found | 404 `{"error": "Contact not found"}` | ✓ | ✓ |
-| Delete own | 204 (no body) | ✓ | ✓ |
-
-### Ownership Enforcement — Raw Verification
-
-**Users:**
-- **User 1** (`test@example.com`, id: `hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG`) — owns John Doe, Bob Wilson
-- **User 2** (`other@example.com`, id: `enHIGq83vhTpF4BeKd8y1A3rV3V4cFrj`) — owns nothing
-
-**Test 1 — User 2 (non-owner) attempts UPDATE on User 1's contact → 403**
-```
-$ curl -s -b /tmp/cookies_u2.txt -X PUT http://localhost:3000/contacts/f58nzd8jmt86u4o78y7l2et1 \
+$ curl -s -b /tmp/cookies_u1.txt -X POST http://localhost:3000/deals \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Hacked Name"}'
+  -d '{"title":"Enterprise Deal","value":50000}'
+
+{"data":{"id":"q2otgoe02c5na96mdrjrboo7","title":"Enterprise Deal","stage":"new","value":50000,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826892981,"updatedAt":1782826892981}}
+```
+
+- ID `q2otgoe02c5na96mdrjrboo7` is a cuid2 (no hyphens) ✓
+- `ownerId` matches the authenticated user (test@example.com) ✓
+- `stage` defaults to `"new"` when not provided ✓
+- `createdAt` and `updatedAt` are set ✓
+- Returns 201 ✓
+
+---
+
+### AC-3: POST /deals rejects missing `title` with 400
+
+```
+$ curl -s -b /tmp/cookies_u1.txt -X POST http://localhost:3000/deals \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+
+{"error":"Title is required"}
+```
+
+**Result:** 400 with clear error message before any database call. ✓
+
+---
+
+### AC-4: POST /deals rejects invalid `stage` with 400
+
+```
+$ curl -s -b /tmp/cookies_u1.txt -X POST http://localhost:3000/deals \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Bad Deal","stage":"invalid"}'
+
+{"error":"Invalid stage"}
+```
+
+**Result:** 400 for stage outside `new`, `qualified`, `won`, `lost`. ✓
+
+---
+
+### AC-5: POST /deals validates `contact_id`
+
+**Invalid (non-existent contact):**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X POST http://localhost:3000/deals \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Bad Deal","contact_id":"nonexistent"}'
+
+{"error":"Contact not found"}
+```
+
+**Valid (existing contact):**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X POST http://localhost:3000/deals \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Linked Deal","contact_id":"f58nzd8jmt86u4o78y7l2et1"}'
+
+{"data":{"id":"lgwmhxpejbz4ybr7qat6iewt","title":"Linked Deal","stage":"new","value":null,"contactId":"f58nzd8jmt86u4o78y7l2et1","ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826902848,"updatedAt":1782826902848}}
+```
+
+**Result:** Non-existent contact returns 400, valid contact creates the deal linked to it. ✓
+
+---
+
+### AC-6: GET /deals returns paginated list (default 25, configurable, cap 100)
+
+**Default pagination:**
+```
+$ curl -s -b /tmp/cookies_u1.txt http://localhost:3000/deals
+
+Count: 3
+Pagination: {"limit":25,"offset":0,"total":3}
+```
+
+**Custom limit/offset:**
+```
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?limit=2&offset=1'
+
+Count: 2
+Pagination: {"limit":2,"offset":1,"total":3}
+```
+
+**Cap at 100:**
+```
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?limit=200'
+
+Pagination: {"limit":100,"offset":0,"total":3}
+```
+
+**Result:** Pagination shape matches Spec 4 exactly. ✓
+
+---
+
+### AC-7: GET /deals supports filtering by `stage` and `owner_id`
+
+**Filter by stage:**
+```
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?stage=new'
+
+Count: 2
+  Enterprise Deal - stage: new
+  Linked Deal - stage: new
+Total: 2
+
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?stage=qualified'
+
+Count: 1
+  Qualified Deal - stage: qualified
+Total: 1
+```
+
+**Filter by owner_id:**
+```
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?owner_id=hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG'
+
+Count: 3
+```
+
+**Empty result (no matches):**
+```
+$ curl -s -b /tmp/cookies_u1.txt 'http://localhost:3000/deals?stage=won'
+
+Count: 0
+Total: 0
+```
+
+**Result:** Both filters work as exact matches, empty filter returns `total: 0` not 404. ✓
+
+---
+
+### AC-8: GET /deals/:id returns deal with embedded contact data
+
+**With linked contact:**
+```
+$ curl -s -b /tmp/cookies_u1.txt http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt
+
+{"data":{"id":"lgwmhxpejbz4ybr7qat6iewt","title":"Linked Deal","stage":"new","value":null,"contactId":"f58nzd8jmt86u4o78y7l2et1","ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826902848,"updatedAt":1782826902848,"contact":{"id":"f58nzd8jmt86u4o78y7l2et1","name":"John Doe Updated","email":"john@example.com","company":"Acme Corp"}}}
+```
+
+**Without linked contact:**
+```
+$ curl -s -b /tmp/cookies_u1.txt http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7
+
+{"data":{"id":"q2otgoe02c5na96mdrjrboo7","title":"Enterprise Deal","stage":"new","value":50000,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826892981,"updatedAt":1782826892981,"contact":null}}
+```
+
+**Non-existent deal:**
+```
+$ curl -s -b /tmp/cookies_u1.txt http://localhost:3000/deals/nonexistent
+
+{"error":"Deal not found"}
+```
+
+**Result:** Contact data embedded under `contact` key when `contact_id` is set, `null` when not, 404 for non-existent. ✓
+
+---
+
+### AC-9: PUT /deals/:id updates provided fields only
+
+```
+$ curl -s -b /tmp/cookies_u1.txt -X PUT http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Enterprise Deal Renamed","value":75000}'
+
+{"data":{"id":"q2otgoe02c5na96mdrjrboo7","title":"Enterprise Deal Renamed","stage":"new","value":75000,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826892981,"updatedAt":1782826923468}}
+```
+
+**Result:** Only `title` and `value` changed, `updatedAt` refreshed, `id` and `ownerId` unchanged. ✓
+
+**Unlink contact (contact_id = null):**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X PUT http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt \
+  -H 'Content-Type: application/json' \
+  -d '{"contact_id":null}'
+
+{"data":{"id":"lgwmhxpejbz4ybr7qat6iewt","title":"Linked Deal","stage":"new","value":null,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826902848,"updatedAt":1782826923523}}
+```
+
+**Result:** Setting `contact_id` to `null` removes the link. ✓
+
+---
+
+### AC-10: PUT /deals/:id validates stage on update
+
+**Invalid stage:**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X PUT http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 \
+  -H 'Content-Type: application/json' \
+  -d '{"stage":"invalid"}'
+
+{"error":"Invalid stage"}
+```
+
+**Valid stage transition:**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X PUT http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 \
+  -H 'Content-Type: application/json' \
+  -d '{"stage":"qualified"}'
+
+{"data":{"id":"q2otgoe02c5na96mdrjrboo7","title":"Enterprise Deal Renamed","stage":"qualified","value":75000,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826892981,"updatedAt":1782826923506}}
+```
+
+**Invalid contact_id on PUT:**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X PUT http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt \
+  -H 'Content-Type: application/json' \
+  -d '{"contact_id":"nonexistent"}'
+
+{"error":"Contact not found"}
+```
+
+**Result:** Invalid stage → 400, valid stage → 200 with updated record, invalid contact_id → 400. ✓
+
+---
+
+### AC-11: PUT /deals/:id returns 403 if not owner, 404 if not exists
+
+**Non-owner attempts update:**
+```
+$ curl -s -b /tmp/cookies_u2.txt -X PUT http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Hacked"}'
 
 {"error":"Forbidden"}
 ```
 
-**Test 2 — User 2 (non-owner) attempts DELETE on User 1's contact → 403**
+**Non-existent deal (404 takes precedence over 403):**
 ```
-$ curl -s -b /tmp/cookies_u2.txt -X DELETE http://localhost:3000/contacts/f58nzd8jmt86u4o78y7l2et1
+$ curl -s -b /tmp/cookies_u2.txt -X PUT http://localhost:3000/deals/nonexistent \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Hacked"}'
+
+{"error":"Deal not found"}
+```
+
+**Result:** 403 for non-owner, 404 for non-existent (even for non-owner). ✓
+
+---
+
+### AC-12: DELETE /deals/:id returns 204 if owner, 403 if not, 404 if not exists
+
+**Non-owner delete:**
+```
+$ curl -s -b /tmp/cookies_u2.txt -X DELETE http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 -w '\nHTTP %{http_code}\n'
+
+{"error":"Forbidden"}
+HTTP 403
+```
+
+**Non-existent delete:**
+```
+$ curl -s -b /tmp/cookies_u2.txt -X DELETE http://localhost:3000/deals/nonexistent -w '\nHTTP %{http_code}\n'
+
+{"error":"Deal not found"}
+HTTP 404
+```
+
+**Owner delete:**
+```
+$ curl -s -b /tmp/cookies_u1.txt -X DELETE http://localhost:3000/deals/q2otgoe02c5na96mdrjrboo7 -w '\nHTTP %{http_code}\n'
+
+
+HTTP 204
+```
+
+**Result:** 204 for owner, 403 for non-owner, 404 for non-existent. ✓
+
+---
+
+### AC-13: Any authenticated user can read any deal
+
+**User 2 (non-owner) reads User 1's deal:**
+```
+$ curl -s -b /tmp/cookies_u2.txt http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt
+
+{"data":{"id":"lgwmhxpejbz4ybr7qat6iewt","title":"Linked Deal","stage":"new","value":null,"contactId":null,"ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782826902848,"updatedAt":1782826923523,"contact":null}}
+```
+
+**User 2 lists all deals:**
+```
+$ curl -s -b /tmp/cookies_u2.txt http://localhost:3000/deals
+
+Count: 2 | Total: 2
+  lgwmhxpe... Linked Deal
+  g8zp8xve... Qualified Deal
+```
+
+**User 2 filters by User 1's owner_id:**
+```
+$ curl -s -b /tmp/cookies_u2.txt 'http://localhost:3000/deals?owner_id=hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG'
+
+Count: 2
+```
+
+**Result:** Any authenticated user can read (list, get by id, filter) any deal regardless of ownership. ✓
+
+---
+
+### AC-14: npm run build zero TypeScript errors
+
+```
+> basis-crm@0.1.0 build
+> rolldown -c
+
+✔ rolldown v1.1.3 Finished in 144.91 ms
+```
+
+---
+
+## Ownership Enforcement — Raw 403 Verification
+
+### User 2 attempts UPDATE on User 1's deal → 403
+
+```
+$ curl -s -b /tmp/cookies_u2.txt -X PUT http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Hacked"}'
 
 {"error":"Forbidden"}
 ```
 
-**Test 3 — User 2 (non-owner) attempts READ User 1's contact → 200**
-```
-$ curl -s -b /tmp/cookies_u2.txt http://localhost:3000/contacts/f58nzd8jmt86u4o78y7l2et1
-
-{"data":{"id":"f58nzd8jmt86u4o78y7l2et1","name":"John Doe Updated","email":"john@example.com","phone":"555-0101","company":"Acme Corp","notes":"Updated notes","ownerId":"hZqvjo73lNZVhkhByhWRk7Nh2A2ByqrG","createdAt":1782823492684,"updatedAt":1782823531693}}
-```
-
-**Test 4 — 403 response body does NOT leak owner info**
-
-403 body: `{"error":"Forbidden"}`
+**403 leak check:**
 - Contains `ownerId`? → 0 matches
-- Contains `owner_id`? → 0 matches
-- Contains user id? → 0 matches
+- Contains deal title? → 0 matches
+- Contains owner ID value? → 0 matches
 - Contains contact data? → 0 matches
 
-**Post-verification:** Contact was confirmed unchanged after the failed update attempt.
+### User 2 attempts DELETE on User 1's deal → 403
+
+```
+$ curl -s -b /tmp/cookies_u2.txt -X DELETE http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt -w '\nHTTP %{http_code}\n'
+
+{"error":"Forbidden"}
+HTTP 403
+```
+
+**403 leak check:**
+- Body: `{"error":"Forbidden"}`
+- Contains `ownerId`? → 0 matches
+- Contains deal data? → 0 matches
+
+### Deal confirmed unchanged after failed update attempt
+
+```
+$ curl -s -b /tmp/cookies_u1.txt http://localhost:3000/deals/lgwmhxpejbz4ybr7qat6iewt
+
+Deal still exists: Linked Deal
+```
+
+**Result:** 403 body is `{"error":"Forbidden"}` — no owner_id, deal data, or any other information leaked. ✓
 
 ---
 
-## Acceptance Criteria Checklist
+## Acceptance Criteria Summary
 
 | # | Criterion | Status |
 |---|-----------|--------|
 | 1 | All endpoints protected by auth middleware (401) | ✓ |
-| 2 | POST creates with server-generated id, sets owner_id + timestamps, returns 201 | ✓ |
-| 3 | POST rejects missing `name` with 400 | ✓ |
-| 4 | GET returns paginated list (default 25, configurable, cap 100) | ✓ |
-| 5 | GET supports `search` (case-insensitive partial on name, email, company) | ✓ |
-| 6 | GET supports `company` filter (exact match) | ✓ |
-| 7 | GET /:id returns contact or 404 | ✓ |
-| 8 | PUT updates provided fields, updates updated_at, blocks owner_id/id changes | ✓ |
-| 9 | PUT returns 403 if not owner, 404 if not exists (404 precedence) | ✓ |
-| 10 | DELETE returns 204 if owner, 403 if not, 404 if not exists | ✓ |
-| 11 | Any authenticated user can read any contact | ✓ |
-| 12 | `npm run build` completes with zero TypeScript errors | ✓ |
-| 13 | Contact IDs are cuids (Spec 2 requirement, fixed during verification) | ✓ |
-| 14 | 403 response body does not leak owner information | ✓ |
+| 2 | POST creates with server-generated cuid, owner_id, timestamps, defaults stage to "new" | ✓ |
+| 3 | POST rejects missing `title` with 400 | ✓ |
+| 4 | POST rejects invalid `stage` with 400 | ✓ |
+| 5 | POST validates `contact_id` (400 if non-existent, 201 if valid) | ✓ |
+| 6 | GET returns paginated list (default 25, configurable, cap 100, matching Spec 4 shape) | ✓ |
+| 7 | GET supports filtering by `stage` and `owner_id` (exact match) | ✓ |
+| 8 | GET /:id returns deal with embedded contact data (or null), 404 if not found | ✓ |
+| 9 | PUT updates provided fields only, updates updated_at, blocks id/owner_id changes | ✓ |
+| 10 | PUT validates stage and contact_id same as POST | ✓ |
+| 11 | PUT returns 403 if not owner, 404 if not exists (404 precedence) | ✓ |
+| 12 | DELETE returns 204 if owner, 403 if not, 404 if not exists (404 precedence) | ✓ |
+| 13 | Any authenticated user can read any deal | ✓ |
+| 14 | `npm run build` completes with zero TypeScript errors | ✓ |
+
+**Deviation from spec:** None found.
