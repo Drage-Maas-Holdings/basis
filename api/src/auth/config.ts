@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { apiKey } from "@better-auth/api-key";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 
@@ -22,6 +23,7 @@ export const auth = betterAuth({
       session: schema.sessions,
       account: schema.accounts,
       verification: schema.verifications,
+      apikey: schema.apikey,
     },
   }),
   emailAndPassword: {
@@ -33,6 +35,16 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: (process.env.BETTER_AUTH_URL || "http://localhost:3000") + "/auth",
   basePath: "/auth",
+  plugins: [
+    apiKey({
+      defaultPrefix: "basis_",
+      requireName: true,
+      keyExpiration: {
+        defaultExpiresIn: null,
+        disableCustomExpiresTime: true,
+      },
+    }),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

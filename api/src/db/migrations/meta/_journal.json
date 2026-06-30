@@ -29,6 +29,13 @@
       "when": 1782847018271,
       "tag": "0003_jittery_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1782849182569,
+      "tag": "0004_friendly_shen",
+      "breakpoints": true
     }
   ]
 }

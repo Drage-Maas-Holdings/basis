@@ -19,6 +19,17 @@ A full stage-history table (tracking every transition with timestamps, not just 
 
 ---
 
+## API Key Plugin: Direct DB Queries vs Plugin Methods for List/Delete
+
+**Date:** 2026-06-30
+**Context:** Spec 10 — API Token Support
+
+The `@better-auth/api-key` plugin provides `listApiKeys` and `deleteApiKey` methods, but these have internal session middleware that cannot authenticate requests made via Bearer token without enabling `enableSessionForAPIKeys` (which creates mock sessions from API keys — a feature with broader security implications). The project's GET and DELETE /api-tokens routes use direct Drizzle queries on the `apikey` table instead, which works identically for both session and token-authenticated requests.
+
+A future improvement could switch to the plugin's built-in list/delete methods by enabling `enableSessionForAPIKeys` if mock sessions are deemed acceptable, but this should be evaluated carefully since it changes how the plugin behaves for all requests, not just these two endpoints.
+
+---
+
 ## Placeholder for Future Entries
 
 Future specs or fixes that introduce similar documented tradeoffs should be added here going forward rather than left only in spec files or chat history.
