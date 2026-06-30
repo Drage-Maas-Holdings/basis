@@ -1,77 +1,54 @@
 import { Hono } from "hono";
-import { APIError } from "better-auth";
 import { auth } from "../auth/config.js";
 import { authMiddleware } from "../auth/middleware.js";
 
 const authRoutes = new Hono();
 
-function statusCode(error: unknown): number {
-  if (error instanceof APIError) {
-    const s = typeof error.status === "number" ? error.status : 400;
-    if (s >= 400 && s < 600) return s;
-  }
-  return 400;
-}
-
 authRoutes.post("/register", async (c) => {
-  try {
-    const { email, password, name } = await c.req.json();
-    const result = await auth.api.signUpEmail({
-      body: { email, password, name },
-      headers: c.req.raw.headers,
-    });
-    return c.json({
-      token: result.token,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        name: result.user.name,
-      },
-    });
-  } catch (error) {
-    const status = statusCode(error);
-    const message =
-      error instanceof APIError
-        ? error.message
-        : "Invalid request";
-    return new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.replace(/\/register$/, "/sign-up/email");
+  const request = new Request(url.toString(), {
+    method: "POST",
+    headers: c.req.raw.headers,
+    body: c.req.raw.body,
+  });
+  const response = await auth.handler(request);
+  // Match on Better Auth's stable error code, not the message text.
+  // The code "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" is defined in
+  // @better-auth/core/dist/error/codes.mjs and thrown by the sign-up
+  // endpoint (better-auth/dist/api/routes/sign-up.mjs) when the email
+  // already exists. If Better Auth renames or removes this code, the
+  // match will fail closed (falling through to the original response)
+  // and the code should be updated to match.
+  if (response.status === 422) {
+    const cloned = response.clone();
+    const body = await cloned.json().catch(() => null);
+    if (body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
+      return c.json(
+        { message: "Invalid request", code: "VALIDATION_ERROR" },
+        400,
+      );
+    }
   }
+  return response;
 });
 
 authRoutes.post("/login", async (c) => {
-  try {
-    const { email, password } = await c.req.json();
-    const result = await auth.api.signInEmail({
-      body: { email, password },
-      headers: c.req.raw.headers,
-    });
-    return c.json({
-      token: result.token,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        name: result.user.name,
-      },
-    });
-  } catch (error) {
-    const status = statusCode(error);
-    const message =
-      error instanceof APIError
-        ? error.message
-        : "Invalid request";
-    return new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.replace(/\/login$/, "/sign-in/email");
+  const request = new Request(url.toString(), {
+    method: "POST",
+    headers: c.req.raw.headers,
+    body: c.req.raw.body,
+  });
+  return auth.handler(request);
 });
 
 authRoutes.get("/me", authMiddleware, async (c) => {
   const user = c.get("user");
   return c.json({ id: user.id, email: user.email, name: user.name });
 });
+
+authRoutes.on(["POST", "GET"], "/*", (c) => auth.handler(c.req.raw));
 
 export default authRoutes;

@@ -8,6 +8,20 @@
       "when": 1782809246634,
       "tag": "0000_regular_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1782819676021,
+      "tag": "0001_abandoned_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782820586064,
+      "tag": "0002_mean_nomad",
+      "breakpoints": true
     }
   ]
 }

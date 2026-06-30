@@ -31,7 +31,8 @@ export const auth = betterAuth({
     expiresIn: sessionExpirySeconds,
   },
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  baseURL: (process.env.BETTER_AUTH_URL || "http://localhost:3000") + "/auth",
+  basePath: "/auth",
 });
 
 export type Session = typeof auth.$Infer.Session;
