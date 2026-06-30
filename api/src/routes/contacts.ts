@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq, like, or, sql } from "drizzle-orm";
+import { createId } from "@paralleldrive/cuid2";
 import { db } from "../db/client.js";
 import { contacts } from "../db/schema.js";
 import { authMiddleware } from "../auth/middleware.js";
@@ -19,7 +20,7 @@ contactsRoutes.post("/contacts", async (c) => {
 
   const user = c.get("user");
   const now = Date.now();
-  const id = crypto.randomUUID();
+  const id = createId();
 
   const [contact] = await db
     .insert(contacts)
