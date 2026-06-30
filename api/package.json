@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "lint": "oxlint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:clean": "bash scripts/cleanup-test-env.sh"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.6.23",
