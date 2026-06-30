@@ -117,3 +117,60 @@ EDGE CASES:
 
 Do not begin implementation until you have confirmed your understanding
 of the acceptance criteria.
+
+---
+
+## Addendum — Schema additions from Spec 3 (Auth)
+
+The following changes were made to `api/src/db/schema.ts` during Spec 3
+to satisfy Better Auth's schema requirements. These are documented here
+for accuracy; the original Spec 2 definitions are preserved above.
+
+### Table: users — extended columns
+
+| Column | Type | Constraint | Added by |
+|--------|------|------------|----------|
+| email_verified | INTEGER | NOT NULL DEFAULT 0 | Spec 3 |
+| image | TEXT | nullable | Spec 3 |
+
+### Table: sessions (new — Better Auth session store)
+
+| Column | Type | Constraint |
+|--------|------|------------|
+| id | TEXT | PRIMARY KEY |
+| expires_at | INTEGER | NOT NULL |
+| token | TEXT | NOT NULL UNIQUE |
+| created_at | INTEGER | NOT NULL |
+| updated_at | INTEGER | NOT NULL |
+| ip_address | TEXT | nullable |
+| user_agent | TEXT | nullable |
+| user_id | TEXT | NOT NULL REFERENCES users(id) ON DELETE CASCADE |
+
+### Table: accounts (new — Better Auth account/providers store)
+
+| Column | Type | Constraint |
+|--------|------|------------|
+| id | TEXT | PRIMARY KEY |
+| account_id | TEXT | NOT NULL |
+| provider_id | TEXT | NOT NULL |
+| user_id | TEXT | NOT NULL REFERENCES users(id) ON DELETE CASCADE |
+| access_token | TEXT | nullable |
+| refresh_token | TEXT | nullable |
+| id_token | TEXT | nullable |
+| access_token_expires_at | INTEGER | nullable |
+| refresh_token_expires_at | INTEGER | nullable |
+| scope | TEXT | nullable |
+| password | TEXT | nullable |
+| created_at | INTEGER | NOT NULL |
+| updated_at | INTEGER | NOT NULL |
+
+### Table: verifications (new — Better Auth verification codes store)
+
+| Column | Type | Constraint |
+|--------|------|------------|
+| id | TEXT | PRIMARY KEY |
+| identifier | TEXT | NOT NULL |
+| value | TEXT | NOT NULL |
+| expires_at | INTEGER | NOT NULL |
+| created_at | INTEGER | NOT NULL |
+| updated_at | INTEGER | NOT NULL |
