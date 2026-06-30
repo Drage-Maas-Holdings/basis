@@ -1,14 +1,14 @@
 # Basis CRM
 
-A lean, self-hosted CRM that ships an API and a web GUI — contact management, a deal pipeline, and interaction history without the overhead of a full CRM platform.
+A lean, self-hosted CRM for small teams that want contact management and a deal pipeline without the overhead of a full CRM platform.
 
-Built to be self-hosted, with both services running from a single Docker Compose file.
+Ships as two services — an API and a web GUI — both defined in a monorepo and started with a single command.
 
 ---
 
 ## What it is
 
-Basis is a single-tenant CRM that ships as two services — an API and a web GUI — both defined in a monorepo at `api/` and `web/`. It is not a SaaS product and it does not try to be. It is designed for internal use at a single company and built to be owned entirely by the team running it.
+Basis is a single-tenant CRM built to be owned entirely by the team running it. It is not a SaaS product. It runs on your own infrastructure, stores data in a SQLite file you control, and exposes a clean REST API for integration with external tools like n8n or custom dashboards.
 
 Core capabilities:
 
@@ -17,8 +17,8 @@ Core capabilities:
 - Task reminders tied to contacts or deals
 - Interaction logs for emails, calls, meetings, and notes
 - Pipeline endpoint with Kanban-compatible grouping
-- Basic reporting: leads added, deals won/lost, upcoming tasks
-- API token support for dashboard and third-party integration
+- Reporting: leads added, deals won/lost, upcoming tasks
+- API token support for service-to-service integration
 
 ---
 
@@ -26,14 +26,25 @@ Core capabilities:
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js |
+| Runtime | Node.js 22 |
 | Framework | Hono |
 | Auth | Better Auth |
 | ORM | Drizzle |
-| Database | SQLite |
+| Database | SQLite (better-sqlite3) |
 | Containerization | Docker Compose |
 
-No external services required. SQLite runs from a Docker-mounted volume. Both services can be brought up with a single command.
+No external services required. SQLite runs from a Docker-mounted volume. The entire stack runs from one `docker compose up`.
+
+---
+
+## Monorepo structure
+
+```
+basis/
+  api/        # Hono REST API
+  web/        # Web GUI
+  docker-compose.yml
+```
 
 ---
 
@@ -49,7 +60,7 @@ No external services required. SQLite runs from a Docker-mounted volume. Both se
 ```bash
 git clone https://github.com/Drage-Maas-Holdings/basis.git
 cd basis
-cp .env.example .env
+cp api/.env.example api/.env
 docker compose up
 ```
 
@@ -61,14 +72,16 @@ Verify the API is running:
 curl http://localhost:3000/health
 ```
 
-### Running migrations
+### Migrations
+
+Migrations run automatically on container start. To run them manually:
 
 ```bash
 cd api
 npm run db:migrate
 ```
 
-To inspect the schema locally:
+To inspect the schema:
 
 ```bash
 cd api
@@ -77,14 +90,35 @@ npm run db:studio
 
 ---
 
+## Configuration
+
+All configuration is via environment variables in `api/.env`. Copy `api/.env.example` and fill in values before starting.
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Absolute path to the SQLite file inside the container (e.g. `/data/basis.db`) |
+| `BETTER_AUTH_SECRET` | Secret used to sign session tokens. Must be strong and kept private. |
+| `BETTER_AUTH_URL` | Base URL the API is reachable at (e.g. `http://localhost:3000`) |
+| `SESSION_EXPIRY_SECONDS` | Session token lifetime in seconds (default: `604800` — 7 days) |
+| `PORT` | Port the API listens on (default: `3000`) |
+
+---
+
 ## API overview
 
-All endpoints require authentication via session token or API token. Tokens are issued through the auth endpoints.
+All endpoints require authentication via session cookie or API token. Full API documentation is available in [`docs/api.md`](./docs/api.md).
+
+### Auth
 
 ```
 POST   /auth/register
 POST   /auth/login
+GET    /auth/me
+```
 
+### Resources
+
+```
 GET    /contacts
 POST   /contacts
 GET    /contacts/:id
@@ -99,63 +133,79 @@ DELETE /deals/:id
 
 GET    /tasks
 POST   /tasks
+GET    /tasks/:id
 PUT    /tasks/:id
 DELETE /tasks/:id
 
-GET    /logs
-POST   /logs
-
-GET    /pipeline
-GET    /reports
+GET    /interaction-logs
+POST   /interaction-logs
+GET    /interaction-logs/:id
 ```
 
-Full API documentation is available in [`docs/api.md`](./docs/api.md).
+### Aggregations
 
----
+```
+GET    /pipeline
+GET    /reports/leads-added
+GET    /reports/deals-summary
+GET    /reports/upcoming-tasks
+```
 
-## Configuration
+### API tokens
 
-All configuration is via environment variables. Copy `.env.example` and fill in values before starting.
-
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | Path to the SQLite file |
-| `BETTER_AUTH_SECRET` | Secret used to sign session tokens |
-| `PORT` | Port the API listens on (default: 3000) |
-
----
-
-## Data model
-
-Four core collections:
-
-- `contacts` — people and companies
-- `deals` — opportunities linked to contacts, with stage tracking
-- `tasks` — follow-up items linked to contacts or deals
-- `interaction_logs` — append-only record of all communications
-
-Schema is defined in `api/src/db/schema.ts` and versioned via Drizzle migration files in `api/src/db/migrations/`.
+```
+POST   /api-tokens
+GET    /api-tokens
+DELETE /api-tokens/:id
+```
 
 ---
 
 ## Authentication
 
-Basis uses Better Auth for session-based authentication. For dashboard or service integration, long-lived API tokens can be generated per user and passed via the `Authorization: Bearer` header.
+Basis uses Better Auth for session-based login. For service-to-service integration (n8n, dashboards, automation), long-lived API tokens can be generated per user and passed via:
 
-Tokens can be revoked at any time. Revoked tokens are rejected immediately.
+```
+Authorization: Bearer <token>
+```
+
+Tokens do not expire and are valid until explicitly revoked. Revocation takes effect immediately. Tokens are managed via the `/api-tokens` endpoints and require a session to create, preventing a leaked token from being used to mint further tokens.
+
+---
+
+## Data model
+
+Eight tables in total:
+
+- `users` — registered users
+- `contacts` — people and companies
+- `deals` — opportunities linked to contacts, with stage tracking
+- `tasks` — follow-up items linked to contacts or deals
+- `interaction_logs` — append-only record of all communications
+- `sessions`, `accounts`, `verifications` — Better Auth internals
+- `apikey` — API tokens managed by Better Auth's API key plugin
+
+Schema is defined in `api/src/db/schema.ts` and versioned via Drizzle migration files in `api/src/db/migrations/`.
+
+---
+
+## Ownership model
+
+Basis uses a single-team model with no multi-tenancy. Any authenticated user can read any record (contacts, deals, tasks, logs). Write access (update and delete) is restricted to the record's owner.
 
 ---
 
 ## Self-hosting
 
-Basis is designed to run as a Docker service. The `docker-compose.yml` in the root mounts a local volume for the SQLite database so data persists across container restarts.
+Basis is designed to run as a Docker service. The `docker-compose.yml` in the root mounts a local volume for the SQLite database so data persists across container restarts. The API port is bound to `127.0.0.1` only and is not publicly exposed.
 
-For production, you should:
+For production:
 
 - Mount the SQLite volume to a durable storage path
-- Put the service behind a reverse proxy (nginx, Caddy) with TLS termination
-- Set a strong `BETTER_AUTH_SECRET`
+- Put the API behind a reverse proxy (nginx, Caddy) with TLS termination
+- Set a strong `BETTER_AUTH_SECRET` and keep it out of version control
 - Back up the SQLite file on a regular schedule
+- If n8n or your dashboard run on a separate server, use a private network or Wireguard tunnel rather than exposing the API port publicly
 
 ---
 

@@ -43,6 +43,9 @@ export const auth = betterAuth({
         defaultExpiresIn: null,
         disableCustomExpiresTime: true,
       },
+      rateLimit: {
+        enabled: false,
+      },
     }),
   ],
 });

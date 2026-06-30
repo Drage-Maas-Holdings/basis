@@ -30,6 +30,19 @@ A future improvement could switch to the plugin's built-in list/delete methods b
 
 ---
 
+## API Key Rate Limiting: Explicitly Disabled
+
+**Date:** 2026-06-30
+**Context:** Spec 10 — API Token Support
+
+The `@better-auth/api-key` plugin enables per-key rate limiting by default (10 requests/day). This was explicitly disabled in `api/src/auth/config.ts` via `rateLimit: { enabled: false }` because:
+
+- This project's API tokens are intended for service-to-service integration (n8n, external dashboards), not for end-user browser sessions. These integrations may legitimately need to make many requests in quick succession.
+- The existing Hono application-layer rate limiting (if added in the future) would be a more appropriate place for global rate limiting, rather than per-token limits that users cannot observe or control.
+- Disabling it was a deliberate choice, not an oversight. If rate limiting is needed in the future, it should be implemented at the application layer (e.g., Hono middleware) with clear per-endpoint or per-user limits visible to API consumers.
+
+---
+
 ## Placeholder for Future Entries
 
 Future specs or fixes that introduce similar documented tradeoffs should be added here going forward rather than left only in spec files or chat history.
