@@ -52,6 +52,7 @@ dealsRoutes.post("/deals", async (c) => {
       value: value ?? null,
       contactId: contact_id ?? null,
       ownerId: user.id,
+      stageChangedAt: resolvedStage !== "new" ? now : null,
       createdAt: now,
       updatedAt: now,
     })
@@ -188,7 +189,12 @@ dealsRoutes.put("/deals/:id", async (c) => {
 
   const updates: Record<string, unknown> = { updatedAt: Date.now() };
   if (title !== undefined) updates.title = title;
-  if (stage !== undefined) updates.stage = stage;
+  if (stage !== undefined) {
+    if (stage !== existing.stage) {
+      updates.stageChangedAt = Date.now();
+    }
+    updates.stage = stage;
+  }
   if (value !== undefined) updates.value = value;
   if (contact_id !== undefined) updates.contactId = contact_id;
 

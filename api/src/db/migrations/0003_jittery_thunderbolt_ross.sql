@@ -1,0 +1,1 @@
+ALTER TABLE `deals` ADD `stage_changed_at` integer;

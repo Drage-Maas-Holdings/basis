@@ -22,6 +22,13 @@
       "when": 1782820586064,
       "tag": "0002_mean_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1782847018271,
+      "tag": "0003_jittery_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

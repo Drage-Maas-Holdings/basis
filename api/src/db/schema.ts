@@ -70,6 +70,7 @@ export const deals = sqliteTable("deals", {
   value: integer("value"),
   contactId: text("contact_id").references(() => contacts.id),
   ownerId: text("owner_id").notNull().references(() => users.id),
+  stageChangedAt: integer("stage_changed_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
