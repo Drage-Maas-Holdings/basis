@@ -6,6 +6,7 @@ import health from "./routes/health.js";
 import authRoutes from "./routes/auth.js";
 import contactsRoutes from "./routes/contacts.js";
 import dealsRoutes from "./routes/deals.js";
+import tasksRoutes from "./routes/tasks.js";
 import "./db/client.js";
 
 const app = new Hono();
@@ -15,6 +16,7 @@ app.route("/", health);
 app.route("/auth", authRoutes);
 app.route("/", contactsRoutes);
 app.route("/", dealsRoutes);
+app.route("/", tasksRoutes);
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
