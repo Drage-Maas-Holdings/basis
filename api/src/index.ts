@@ -8,6 +8,7 @@ import contactsRoutes from "./routes/contacts.js";
 import dealsRoutes from "./routes/deals.js";
 import tasksRoutes from "./routes/tasks.js";
 import interactionLogsRoutes from "./routes/interaction-logs.js";
+import pipelineRoutes from "./routes/pipeline.js";
 import "./db/client.js";
 
 const app = new Hono();
@@ -19,6 +20,7 @@ app.route("/", contactsRoutes);
 app.route("/", dealsRoutes);
 app.route("/", tasksRoutes);
 app.route("/", interactionLogsRoutes);
+app.route("/", pipelineRoutes);
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
