@@ -1,7 +1,7 @@
 ## Basis CRM - PRD v0.1
 
 **Product:** Basis CRM
-**Type:** Internal single-tenant CRM, API-first
+**Type:** Internal single-tenant CRM, API + self-hosted web GUI
 **Users:** 10-50 internal users
 **Data scale:** Tens of thousands of contact and deal records
 **Auth:** Owned by Basis via Better Auth, exposed to consuming dashboards via API token or session
@@ -10,9 +10,10 @@
 
 ### Goals
 - Expose a clean REST API for contacts, deals, tasks, and interaction logs
-- Provide a Kanban pipeline view and basic reporting as either API endpoints or a minimal UI
+- Provide a self-hosted web GUI with a Kanban pipeline view and basic reporting
+- Ship both the API and web GUI from a monorepo under `api/` and `web/`
 - Support versioned schema migrations with zero ambiguity
-- Be deployable as a standalone Docker service
+- Be deployable as a single Docker Compose stack running both services
 
 ### Non-goals
 - Real-time collaborative editing

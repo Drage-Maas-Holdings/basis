@@ -1,14 +1,14 @@
 # Basis CRM
 
-A lean, API-first CRM module for companies that need contact management, a deal pipeline, and interaction history without the overhead of a full CRM platform.
+A lean, self-hosted CRM that ships an API and a web GUI — contact management, a deal pipeline, and interaction history without the overhead of a full CRM platform.
 
-Built to be self-hosted, embedded into existing dashboards, or consumed as a standalone API service.
+Built to be self-hosted, with both services running from a single Docker Compose file.
 
 ---
 
 ## What it is
 
-Basis is a single-tenant CRM backend that exposes a clean REST API. It is not a SaaS product and it does not try to be. It is designed for internal use at a single company and built to be owned entirely by the team running it.
+Basis is a single-tenant CRM that ships as two services — an API and a web GUI — both defined in a monorepo at `api/` and `web/`. It is not a SaaS product and it does not try to be. It is designed for internal use at a single company and built to be owned entirely by the team running it.
 
 Core capabilities:
 
@@ -33,7 +33,7 @@ Core capabilities:
 | Database | SQLite |
 | Containerization | Docker Compose |
 
-No external services required. SQLite runs from a Docker-mounted volume. The entire stack can be brought up with a single command.
+No external services required. SQLite runs from a Docker-mounted volume. Both services can be brought up with a single command.
 
 ---
 
@@ -42,20 +42,20 @@ No external services required. SQLite runs from a Docker-mounted volume. The ent
 ### Prerequisites
 
 - Docker and Docker Compose
-- Node.js 20+
+- Node.js 22+
 
 ### Running locally
 
 ```bash
-git clone https://github.com/your-org/basis-crm.git
-cd basis-crm
+git clone https://github.com/Drage-Maas-Holdings/basis.git
+cd basis
 cp .env.example .env
 docker compose up
 ```
 
-The API will be available at `http://localhost:3000`.
+The API will be available at `http://localhost:3000` and the web GUI at `http://localhost:5173`.
 
-Verify the service is running:
+Verify the API is running:
 
 ```bash
 curl http://localhost:3000/health
@@ -64,12 +64,14 @@ curl http://localhost:3000/health
 ### Running migrations
 
 ```bash
+cd api
 npm run db:migrate
 ```
 
 To inspect the schema locally:
 
 ```bash
+cd api
 npm run db:studio
 ```
 
@@ -132,7 +134,7 @@ Four core collections:
 - `tasks` — follow-up items linked to contacts or deals
 - `interaction_logs` — append-only record of all communications
 
-Schema is defined in `src/db/schema.ts` and versioned via Drizzle migration files in `drizzle/`.
+Schema is defined in `api/src/db/schema.ts` and versioned via Drizzle migration files in `api/src/db/migrations/`.
 
 ---
 

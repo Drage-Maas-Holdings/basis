@@ -5,16 +5,18 @@ Do not make assumptions about any requirement not listed here.
 FEATURE: Schema and Migrations
 
 OVERVIEW:
-Replace the placeholder table in src/db/schema.ts with the five core Basis CRM
-tables: Users, Contacts, Deals, Tasks, and InteractionLogs. Generate and apply
-the migration. No API routes or business logic are implemented in this spec.
+Replace the placeholder table in api/src/db/schema.ts with the five core
+Basis CRM tables: Users, Contacts, Deals, Tasks, and InteractionLogs.
+Generate and apply the migration. No API routes or business logic are
+implemented in this spec.
 
 CONTEXT:
 - Project root: /home/pjmaas/Documents/Code/basis
-- Schema file: src/db/schema.ts
-- Migrations directory: src/db/migrations/
-- Migration is generated with: npm run db:generate
-- Migration is applied with: npm run db:migrate
+- Working directory for all commands below: api/
+- Schema file: api/src/db/schema.ts
+- Migrations directory: api/src/db/migrations/
+- Migration is generated with: npm run db:generate (from within api/)
+- Migration is applied with: npm run db:migrate (from within api/)
 - The placeholder table from Spec 1 must be removed
 
 SCHEMA DEFINITIONS:
@@ -69,14 +71,17 @@ Table: interaction_logs
 - created_at  INTEGER NOT NULL (append-only; no updated_at)
 
 ACCEPTANCE CRITERIA:
-1. The placeholder table is removed from src/db/schema.ts
-2. All five tables are defined in src/db/schema.ts using Drizzle's sqliteTable
+1. The placeholder table is removed from api/src/db/schema.ts
+2. All five tables are defined in api/src/db/schema.ts using Drizzle's
+   sqliteTable
 3. All foreign key relationships are defined in the schema
-4. npm run db:generate produces a new migration file in src/db/migrations/
-5. npm run db:migrate applies the migration without error
+4. npm run db:generate (from within api/) produces a new migration file in
+   api/src/db/migrations/
+5. npm run db:migrate (from within api/) applies the migration without error
 6. All five tables exist in the SQLite file with the correct columns and
    constraints, verifiable via npm run db:studio or sqlite3 inspection
-7. npm run build (tsc) completes with zero errors after schema changes
+7. npm run build (tsc, from within api/) completes with zero errors after
+   schema changes
 
 CONSTRAINTS:
 - Use Drizzle ORM syntax (sqliteTable, text, integer) — do not write raw SQL

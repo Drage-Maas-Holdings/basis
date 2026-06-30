@@ -1,12 +1,12 @@
 services:
   api:
-    build: .
+    build: ./api
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
       - data:/data
     env_file:
-      - .env
+      - ./api/.env
 
 volumes:
   data:
