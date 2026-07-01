@@ -106,7 +106,7 @@ All configuration is via environment variables in `api/.env`. Copy `api/.env.exa
 
 ## API overview
 
-All endpoints require authentication via session cookie or API token. Full API documentation is available in [`docs/api.md`](./docs/api.md).
+All endpoints require authentication via session cookie or API token. Full API documentation is available in [`docs/api.md`](./docs/api.md). A machine-readable OpenAPI 3.1 spec is also available at `GET /openapi.json` when the server is running.
 
 ### Auth
 
@@ -211,7 +211,7 @@ For production:
 
 ## Contributing
 
-Contributions are welcome. Please open an issue before submitting a pull request for anything beyond small bug fixes, so the change can be discussed first.
+Contributions are welcome. Please open an issue before submitting a pull request for anything beyond small bug fixes, so the change can be discussed first. New or changed routes must include Zod schemas and appear in the OpenAPI spec (`GET /openapi.json`) before a PR will be accepted.
 
 ---
 
