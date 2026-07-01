@@ -1,17 +1,228 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, lt, and, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../db/client.js";
 import { tasks, contacts, deals } from "../db/schema.js";
 import { authMiddleware } from "../auth/middleware.js";
 
-const tasksRoutes = new Hono();
+const tasksRoutes = new OpenAPIHono();
 
 tasksRoutes.use("/tasks/*", authMiddleware);
 tasksRoutes.use("/tasks", authMiddleware);
 
-tasksRoutes.post("/tasks", async (c) => {
-  const body = await c.req.json();
+const ErrorSchema = z.object({ error: z.string() }).openapi("Error");
+
+const TaskSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    title: z.string().openapi({ example: "Follow up" }),
+    dueAt: z.number().nullable().openapi({ example: 1700000000000 }),
+    completed: z.number().openapi({ example: 0 }),
+    contactId: z.string().nullable().openapi({ example: "ckly1x7s2000001qexxx" }),
+    dealId: z.string().nullable().openapi({ example: "ckly1x7s2000001qexxx" }),
+    ownerId: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    createdAt: z.number().openapi({ example: 1700000000000 }),
+    updatedAt: z.number().openapi({ example: 1700000000000 }),
+  })
+  .openapi("Task");
+
+const PaginationSchema = z
+  .object({
+    limit: z.number().openapi({ example: 25 }),
+    offset: z.number().openapi({ example: 0 }),
+    total: z.number().openapi({ example: 42 }),
+  })
+  .openapi("Pagination");
+
+const createTaskRoute = createRoute({
+  method: "post",
+  path: "/tasks",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            title: z.string().optional().openapi({ example: "Follow up" }),
+            due_at: z.number().optional().openapi({ example: 1700000000000 }),
+            contact_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+            deal_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: TaskSchema }),
+        },
+      },
+      description: "Task created",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Missing title, invalid due_at, or invalid reference",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Tasks"],
+  operationId: "createTask",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const listTasksRoute = createRoute({
+  method: "get",
+  path: "/tasks",
+  request: {
+    query: z.object({
+      completed: z.enum(["true", "false"]).optional().openapi({ example: "true" }),
+      owner_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      contact_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      deal_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      overdue: z.enum(["true"]).optional().openapi({ example: "true" }),
+      limit: z.string().optional().openapi({ example: "25" }),
+      offset: z.string().optional().openapi({ example: "0" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            data: z.array(TaskSchema),
+            pagination: PaginationSchema,
+          }),
+        },
+      },
+      description: "Paginated list of tasks",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Tasks"],
+  operationId: "listTasks",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const getTaskRoute = createRoute({
+  method: "get",
+  path: "/tasks/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: TaskSchema }),
+        },
+      },
+      description: "Task details",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Task not found",
+    },
+  },
+  tags: ["Tasks"],
+  operationId: "getTask",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const updateTaskRoute = createRoute({
+  method: "put",
+  path: "/tasks/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            title: z.string().optional().openapi({ example: "Updated task" }),
+            due_at: z.number().optional().openapi({ example: 1700000000000 }),
+            completed: z.boolean().optional().openapi({ example: true }),
+            contact_id: z.string().nullable().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+            deal_id: z.string().nullable().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: TaskSchema }),
+        },
+      },
+      description: "Task updated",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid due_at or reference",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Forbidden (not owner)",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Task not found",
+    },
+  },
+  tags: ["Tasks"],
+  operationId: "updateTask",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const deleteTaskRoute = createRoute({
+  method: "delete",
+  path: "/tasks/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    204: { description: "Task deleted" },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Forbidden (not owner)",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Task not found",
+    },
+  },
+  tags: ["Tasks"],
+  operationId: "deleteTask",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+tasksRoutes.openapi(createTaskRoute, async (c) => {
+  const body = c.req.valid("json");
   const { title, due_at, contact_id, deal_id } = body;
 
   if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -74,7 +285,7 @@ tasksRoutes.post("/tasks", async (c) => {
   return c.json({ data: task }, 201);
 });
 
-tasksRoutes.get("/tasks", async (c) => {
+tasksRoutes.openapi(listTasksRoute, async (c) => {
   const {
     completed,
     owner_id,
@@ -140,7 +351,7 @@ tasksRoutes.get("/tasks", async (c) => {
   });
 });
 
-tasksRoutes.get("/tasks/:id", async (c) => {
+tasksRoutes.openapi(getTaskRoute, async (c) => {
   const { id } = c.req.param();
 
   const [task] = await db
@@ -156,7 +367,7 @@ tasksRoutes.get("/tasks/:id", async (c) => {
   return c.json({ data: task });
 });
 
-tasksRoutes.put("/tasks/:id", async (c) => {
+tasksRoutes.openapi(updateTaskRoute, async (c) => {
   const { id } = c.req.param();
 
   const [existing] = await db
@@ -174,7 +385,7 @@ tasksRoutes.put("/tasks/:id", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const body = await c.req.json();
+  const body = c.req.valid("json");
   const { title, due_at, completed, contact_id, deal_id } = body;
 
   if (due_at !== undefined && due_at !== null) {
@@ -227,7 +438,7 @@ tasksRoutes.put("/tasks/:id", async (c) => {
   return c.json({ data: updated });
 });
 
-tasksRoutes.delete("/tasks/:id", async (c) => {
+tasksRoutes.openapi(deleteTaskRoute, async (c) => {
   const { id } = c.req.param();
 
   const [existing] = await db

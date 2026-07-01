@@ -1,12 +1,14 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, and, gte, lte, gt, isNotNull, inArray, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { contacts, deals, tasks } from "../db/schema.js";
 import { authMiddleware } from "../auth/middleware.js";
 
-const reportsRoutes = new Hono();
+const reportsRoutes = new OpenAPIHono();
 
 reportsRoutes.use("/reports/*", authMiddleware);
+
+const ErrorSchema = z.object({ error: z.string() }).openapi("Error");
 
 function parseDateRange(fromRaw: string | undefined, toRaw: string | undefined) {
   const serverNow = Date.now();
@@ -30,7 +32,99 @@ function parseDateRange(fromRaw: string | undefined, toRaw: string | undefined) 
   return { from, to };
 }
 
-reportsRoutes.get("/reports/leads-added", async (c) => {
+const DateRangeQuery = z.object({
+  from: z.string().optional().openapi({ example: "1700000000000" }),
+  to: z.string().optional().openapi({ example: "1700086400000" }),
+});
+
+const leadsAddedRoute = createRoute({
+  method: "get",
+  path: "/reports/leads-added",
+  request: { query: DateRangeQuery },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            count: z.number().openapi({ example: 5 }),
+            from: z.number().openapi({ example: 1700000000000 }),
+            to: z.number().openapi({ example: 1700086400000 }),
+          }),
+        },
+      },
+      description: "Count of contacts created in the date range",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid date range",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Reports"],
+  operationId: "getLeadsAdded",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const dealsSummaryRoute = createRoute({
+  method: "get",
+  path: "/reports/deals-summary",
+  request: { query: DateRangeQuery },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            won: z.object({ count: z.number(), total: z.number() }),
+            lost: z.object({ count: z.number(), total: z.number() }),
+            from: z.number(),
+            to: z.number(),
+          }),
+        },
+      },
+      description: "Won/lost deal summary in the date range",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid date range",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Reports"],
+  operationId: "getDealsSummary",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const upcomingTasksRoute = createRoute({
+  method: "get",
+  path: "/reports/upcoming-tasks",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            count: z.number().openapi({ example: 3 }),
+          }),
+        },
+      },
+      description: "Count of incomplete tasks with future due dates",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Reports"],
+  operationId: "getUpcomingTasks",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+reportsRoutes.openapi(leadsAddedRoute, async (c) => {
   const { from: fromRaw, to: toRaw } = c.req.query();
 
   const range = parseDateRange(fromRaw, toRaw);
@@ -48,7 +142,7 @@ reportsRoutes.get("/reports/leads-added", async (c) => {
   return c.json({ count: result.count, from: range.from, to: range.to });
 });
 
-reportsRoutes.get("/reports/deals-summary", async (c) => {
+reportsRoutes.openapi(dealsSummaryRoute, async (c) => {
   const { from: fromRaw, to: toRaw } = c.req.query();
 
   const range = parseDateRange(fromRaw, toRaw);
@@ -84,7 +178,7 @@ reportsRoutes.get("/reports/deals-summary", async (c) => {
   });
 });
 
-reportsRoutes.get("/reports/upcoming-tasks", async (c) => {
+reportsRoutes.openapi(upcomingTasksRoute, async (c) => {
   const now = Date.now();
 
   const [result] = await db

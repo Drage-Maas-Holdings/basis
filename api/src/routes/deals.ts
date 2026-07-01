@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../db/client.js";
@@ -7,13 +7,245 @@ import { authMiddleware } from "../auth/middleware.js";
 
 const VALID_STAGES = ["new", "qualified", "won", "lost"] as const;
 
-const dealsRoutes = new Hono();
+const dealsRoutes = new OpenAPIHono();
 
 dealsRoutes.use("/deals/*", authMiddleware);
 dealsRoutes.use("/deals", authMiddleware);
 
-dealsRoutes.post("/deals", async (c) => {
-  const body = await c.req.json();
+const ErrorSchema = z.object({ error: z.string() }).openapi("Error");
+
+const StageEnum = z.enum(VALID_STAGES).openapi({ example: "new" });
+
+const DealSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    title: z.string().openapi({ example: "Big Deal" }),
+    stage: StageEnum,
+    value: z.number().nullable().openapi({ example: 1000 }),
+    contactId: z.string().nullable().openapi({ example: "ckly1x7s2000001qexxx" }),
+    ownerId: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    stageChangedAt: z.number().nullable().openapi({ example: 1700000000000 }),
+    createdAt: z.number().openapi({ example: 1700000000000 }),
+    updatedAt: z.number().openapi({ example: 1700000000000 }),
+  })
+  .openapi("Deal");
+
+const ContactRefSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    name: z.string().openapi({ example: "Jane Doe" }),
+    email: z.string().openapi({ example: "jane@example.com" }),
+    company: z.string().nullable().openapi({ example: "Acme Corp" }),
+  })
+  .openapi("ContactRef");
+
+const DealWithContactSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    stage: StageEnum,
+    value: z.number().nullable(),
+    contactId: z.string().nullable(),
+    ownerId: z.string(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    contact: ContactRefSchema.nullable(),
+  })
+  .openapi("DealWithContact");
+
+const PaginationSchema = z
+  .object({
+    limit: z.number().openapi({ example: 25 }),
+    offset: z.number().openapi({ example: 0 }),
+    total: z.number().openapi({ example: 42 }),
+  })
+  .openapi("Pagination");
+
+const createDealRoute = createRoute({
+  method: "post",
+  path: "/deals",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            title: z.string().optional().openapi({ example: "Big Deal" }),
+            stage: z.string().optional().openapi({ enum: ["new", "qualified", "won", "lost"], example: "new", description: "Deal stage" }),
+            value: z.number().optional().openapi({ example: 1000 }),
+            contact_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: DealSchema }),
+        },
+      },
+      description: "Deal created",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Missing title, invalid stage, or invalid contact",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Deals"],
+  operationId: "createDeal",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const listDealsRoute = createRoute({
+  method: "get",
+  path: "/deals",
+  request: {
+    query: z.object({
+      stage: z.enum(VALID_STAGES).optional().openapi({ example: "won" }),
+      owner_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      limit: z.string().optional().openapi({ example: "25" }),
+      offset: z.string().optional().openapi({ example: "0" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            data: z.array(DealSchema),
+            pagination: PaginationSchema,
+          }),
+        },
+      },
+      description: "Paginated list of deals",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Deals"],
+  operationId: "listDeals",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const getDealRoute = createRoute({
+  method: "get",
+  path: "/deals/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: DealWithContactSchema }),
+        },
+      },
+      description: "Deal details with optional contact info",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Deal not found",
+    },
+  },
+  tags: ["Deals"],
+  operationId: "getDeal",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const updateDealRoute = createRoute({
+  method: "put",
+  path: "/deals/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            title: z.string().optional().openapi({ example: "Updated Deal" }),
+            stage: z.string().optional().openapi({ enum: ["new", "qualified", "won", "lost"], example: "won", description: "Deal stage" }),
+            value: z.number().optional().openapi({ example: 2000 }),
+            contact_id: z.string().nullable().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: DealSchema }),
+        },
+      },
+      description: "Deal updated",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid stage or contact",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Forbidden (not owner)",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Deal not found",
+    },
+  },
+  tags: ["Deals"],
+  operationId: "updateDeal",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const deleteDealRoute = createRoute({
+  method: "delete",
+  path: "/deals/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    204: { description: "Deal deleted" },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Forbidden (not owner)",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Deal not found",
+    },
+  },
+  tags: ["Deals"],
+  operationId: "deleteDeal",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+dealsRoutes.openapi(createDealRoute, async (c) => {
+  const body = c.req.valid("json");
   const { title, stage, value, contact_id } = body;
 
   if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -61,7 +293,7 @@ dealsRoutes.post("/deals", async (c) => {
   return c.json({ data: deal }, 201);
 });
 
-dealsRoutes.get("/deals", async (c) => {
+dealsRoutes.openapi(listDealsRoute, async (c) => {
   const { stage, owner_id, limit: limitRaw, offset: offsetRaw } = c.req.query();
 
   const limit = Math.min(Math.max(parseInt(limitRaw || "25", 10) || 25, 1), 100);
@@ -98,7 +330,7 @@ dealsRoutes.get("/deals", async (c) => {
   });
 });
 
-dealsRoutes.get("/deals/:id", async (c) => {
+dealsRoutes.openapi(getDealRoute, async (c) => {
   const { id } = c.req.param();
 
   const rows = await db
@@ -148,7 +380,7 @@ dealsRoutes.get("/deals/:id", async (c) => {
   return c.json({ data: deal });
 });
 
-dealsRoutes.put("/deals/:id", async (c) => {
+dealsRoutes.openapi(updateDealRoute, async (c) => {
   const { id } = c.req.param();
 
   const [existing] = await db
@@ -166,7 +398,7 @@ dealsRoutes.put("/deals/:id", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const body = await c.req.json();
+  const body = c.req.valid("json");
   const { title, stage, value, contact_id } = body;
 
   if (stage !== undefined && !VALID_STAGES.includes(stage)) {
@@ -207,7 +439,7 @@ dealsRoutes.put("/deals/:id", async (c) => {
   return c.json({ data: updated });
 });
 
-dealsRoutes.delete("/deals/:id", async (c) => {
+dealsRoutes.openapi(deleteDealRoute, async (c) => {
   const { id } = c.req.param();
 
   const [existing] = await db

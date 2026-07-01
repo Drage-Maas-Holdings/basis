@@ -1,16 +1,134 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { auth } from "../auth/config.js";
 import { authMiddleware } from "../auth/middleware.js";
 import { db } from "../db/client.js";
 import { apikey } from "../db/schema.js";
 
-const apiTokensRoutes = new Hono();
+const apiTokensRoutes = new OpenAPIHono();
 
 apiTokensRoutes.use("/api-tokens/*", authMiddleware);
 apiTokensRoutes.use("/api-tokens", authMiddleware);
 
-apiTokensRoutes.post("/api-tokens", async (c) => {
+const ErrorSchema = z.object({ error: z.string() }).openapi("Error");
+
+const ApiTokenSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    name: z.string().openapi({ example: "ci-token" }),
+    key: z.string().optional().openapi({ example: "basis_xxxxxxxxxxxx" }),
+    prefix: z.string().optional(),
+    start: z.string().optional(),
+    createdAt: z.number().optional(),
+    lastRequest: z.number().nullable().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .openapi("ApiToken");
+
+const ListedTokenSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+    prefix: z.string().nullable(),
+    start: z.string().nullable(),
+    createdAt: z.number().nullable(),
+    lastRequest: z.number().nullable(),
+    enabled: z.boolean().nullable(),
+  })
+  .openapi("ListedToken");
+
+const createTokenRoute = createRoute({
+  method: "post",
+  path: "/api-tokens",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+name: z.string().optional().openapi({ example: "ci-token" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: ApiTokenSchema }),
+        },
+      },
+      description: "API token created",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Missing name",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Session required to create tokens (bearer token rejected)",
+    },
+  },
+  tags: ["API Tokens"],
+  operationId: "createApiToken",
+  security: [{ SessionCookie: [] }],
+});
+
+const listTokensRoute = createRoute({
+  method: "get",
+  path: "/api-tokens",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: z.array(ListedTokenSchema) }),
+        },
+      },
+      description: "List of API tokens for the current user",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["API Tokens"],
+  operationId: "listApiTokens",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const deleteTokenRoute = createRoute({
+  method: "delete",
+  path: "/api-tokens/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    204: { description: "Token deleted" },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Forbidden (not owner)",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Token not found",
+    },
+  },
+  tags: ["API Tokens"],
+  operationId: "deleteApiToken",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+apiTokensRoutes.openapi(createTokenRoute, async (c) => {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers,
   });
@@ -18,7 +136,7 @@ apiTokensRoutes.post("/api-tokens", async (c) => {
     return c.json({ error: "Session required to create tokens" }, 403);
   }
 
-  const body = await c.req.json();
+  const body = c.req.valid("json");
   const { name } = body;
 
   if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -35,7 +153,7 @@ apiTokensRoutes.post("/api-tokens", async (c) => {
   return c.json({ data: result }, 201);
 });
 
-apiTokensRoutes.get("/api-tokens", async (c) => {
+apiTokensRoutes.openapi(listTokensRoute, async (c) => {
   const user = c.get("user");
 
   const keys = await db
@@ -54,7 +172,7 @@ apiTokensRoutes.get("/api-tokens", async (c) => {
   return c.json({ data: keys });
 });
 
-apiTokensRoutes.delete("/api-tokens/:id", async (c) => {
+apiTokensRoutes.openapi(deleteTokenRoute, async (c) => {
   const user = c.get("user");
   const { id } = c.req.param();
 

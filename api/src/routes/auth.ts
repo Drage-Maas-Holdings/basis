@@ -1,25 +1,164 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { auth } from "../auth/config.js";
 import { authMiddleware } from "../auth/middleware.js";
 
-const authRoutes = new Hono();
+const authRoutes = new OpenAPIHono();
 
-authRoutes.post("/register", async (c) => {
+const UserSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    email: z.string().openapi({ example: "user@example.com" }),
+    name: z.string().openapi({ example: "Alice" }),
+    emailVerified: z.boolean().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+    image: z.string().nullable().optional(),
+  })
+  .openapi("AuthUser");
+
+const SessionSchema = z
+  .object({
+    id: z.string(),
+    expiresAt: z.number(),
+    token: z.string(),
+  })
+  .openapi("AuthSession");
+
+const RegisterErrorSchema = z
+  .object({
+    message: z.string().openapi({ example: "Invalid request" }),
+    code: z.string().openapi({ example: "VALIDATION_ERROR" }),
+  })
+  .openapi("RegisterError");
+
+const registerRoute = createRoute({
+  method: "post",
+  path: "/register",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            email: z.string().optional().openapi({ example: "user@example.com" }),
+            password: z.string().optional().openapi({ example: "password123" }),
+            name: z.string().optional().openapi({ example: "Alice" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            user: UserSchema,
+            session: SessionSchema,
+          }),
+        },
+      },
+      description: "User registered successfully",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: RegisterErrorSchema,
+        },
+      },
+      description: "Invalid request or email already in use",
+    },
+  },
+  tags: ["Auth"],
+  operationId: "authRegister",
+});
+
+const loginRoute = createRoute({
+  method: "post",
+  path: "/login",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            email: z.string().optional().openapi({ example: "user@example.com" }),
+            password: z.string().optional().openapi({ example: "password123" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            user: UserSchema,
+            session: SessionSchema,
+          }),
+        },
+      },
+      description: "User logged in successfully",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            message: z.string().optional(),
+          }),
+        },
+      },
+      description: "Invalid credentials",
+    },
+  },
+  tags: ["Auth"],
+  operationId: "authLogin",
+});
+
+const MeResponseSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    email: z.string().openapi({ example: "user@example.com" }),
+    name: z.string().openapi({ example: "Alice" }),
+  })
+  .openapi("MeResponse");
+
+const meRoute = createRoute({
+  method: "get",
+  path: "/me",
+  middleware: [authMiddleware] as const,
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: MeResponseSchema,
+        },
+      },
+      description: "Current user identity",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Auth"],
+  operationId: "authMe",
+  security: [{ SessionCookie: [] }, { Bearer: [] }],
+});
+
+authRoutes.openapi(registerRoute, async (c) => {
+  const body = c.req.valid("json");
   const url = new URL(c.req.url);
   url.pathname = url.pathname.replace(/\/register$/, "/sign-up/email");
   const request = new Request(url.toString(), {
     method: "POST",
     headers: c.req.raw.headers,
-    body: c.req.raw.body,
+    body: JSON.stringify(body),
   });
   const response = await auth.handler(request);
-  // Match on Better Auth's stable error code, not the message text.
-  // The code "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" is defined in
-  // @better-auth/core/dist/error/codes.mjs and thrown by the sign-up
-  // endpoint (better-auth/dist/api/routes/sign-up.mjs) when the email
-  // already exists. If Better Auth renames or removes this code, the
-  // match will fail closed (falling through to the original response)
-  // and the code should be updated to match.
   if (response.status === 422) {
     const cloned = response.clone();
     const body = await cloned.json().catch(() => null);
@@ -33,20 +172,21 @@ authRoutes.post("/register", async (c) => {
   return response;
 });
 
-authRoutes.post("/login", async (c) => {
+authRoutes.openapi(loginRoute, async (c) => {
+  const body = c.req.valid("json");
   const url = new URL(c.req.url);
   url.pathname = url.pathname.replace(/\/login$/, "/sign-in/email");
   const request = new Request(url.toString(), {
     method: "POST",
     headers: c.req.raw.headers,
-    body: c.req.raw.body,
+    body: JSON.stringify(body),
   });
   return auth.handler(request);
 });
 
-authRoutes.get("/me", authMiddleware, async (c) => {
+authRoutes.openapi(meRoute, async (c) => {
   const user = c.get("user");
-  return c.json({ id: user.id, email: user.email, name: user.name });
+  return c.json({ id: user.id, email: user.email, name: user.name }, 200);
 });
 
 authRoutes.on(["POST", "GET"], "/*", (c) => auth.handler(c.req.raw));

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { createRoute, z, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, and, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../db/client.js";
@@ -7,13 +7,141 @@ import { authMiddleware } from "../auth/middleware.js";
 
 const VALID_TYPES = ["email", "call", "meeting", "note"] as const;
 
-const interactionLogsRoutes = new Hono();
+const interactionLogsRoutes = new OpenAPIHono();
 
 interactionLogsRoutes.use("/interaction-logs/*", authMiddleware);
 interactionLogsRoutes.use("/interaction-logs", authMiddleware);
 
-interactionLogsRoutes.post("/interaction-logs", async (c) => {
-  const body = await c.req.json();
+const ErrorSchema = z.object({ error: z.string() }).openapi("Error");
+
+const InteractionLogSchema = z
+  .object({
+    id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    type: z.enum(VALID_TYPES).openapi({ example: "call" }),
+    body: z.string().openapi({ example: "Discussed pricing" }),
+    contactId: z.string().nullable().openapi({ example: "ckly1x7s2000001qexxx" }),
+    dealId: z.string().nullable().openapi({ example: "ckly1x7s2000001qexxx" }),
+    loggedBy: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    createdAt: z.number().openapi({ example: 1700000000000 }),
+  })
+  .openapi("InteractionLog");
+
+const PaginationSchema = z
+  .object({
+    limit: z.number().openapi({ example: 25 }),
+    offset: z.number().openapi({ example: 0 }),
+    total: z.number().openapi({ example: 42 }),
+  })
+  .openapi("Pagination");
+
+const createLogRoute = createRoute({
+  method: "post",
+  path: "/interaction-logs",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            type: z.string().optional().openapi({ enum: ["email", "call", "meeting", "note"], example: "call", description: "Interaction type" }),
+            body: z.string().optional().openapi({ example: "Discussed pricing" }),
+            contact_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+            deal_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: InteractionLogSchema }),
+        },
+      },
+      description: "Log entry created",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid type, missing body, or missing contact_id/deal_id",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Interaction Logs"],
+  operationId: "createInteractionLog",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const listLogsRoute = createRoute({
+  method: "get",
+  path: "/interaction-logs",
+  request: {
+    query: z.object({
+      contact_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      deal_id: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      type: z.enum(VALID_TYPES).optional().openapi({ example: "call" }),
+      logged_by: z.string().optional().openapi({ example: "ckly1x7s2000001qexxx" }),
+      limit: z.string().optional().openapi({ example: "25" }),
+      offset: z.string().optional().openapi({ example: "0" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            data: z.array(InteractionLogSchema),
+            pagination: PaginationSchema,
+          }),
+        },
+      },
+      description: "Paginated list of log entries",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Interaction Logs"],
+  operationId: "listInteractionLogs",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+const getLogRoute = createRoute({
+  method: "get",
+  path: "/interaction-logs/{id}",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "ckly1x7s2000001qexxx" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ data: InteractionLogSchema }),
+        },
+      },
+      description: "Log entry details",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Unauthorized",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Log entry not found",
+    },
+  },
+  tags: ["Interaction Logs"],
+  operationId: "getInteractionLog",
+  security: [{ Bearer: [] }, { SessionCookie: [] }],
+});
+
+interactionLogsRoutes.openapi(createLogRoute, async (c) => {
+  const body = c.req.valid("json");
   const { type, body: logBody, contact_id, deal_id } = body;
 
   if (!type || typeof type !== "string" || !VALID_TYPES.includes(type as typeof VALID_TYPES[number])) {
@@ -76,7 +204,7 @@ interactionLogsRoutes.post("/interaction-logs", async (c) => {
   return c.json({ data: log }, 201);
 });
 
-interactionLogsRoutes.get("/interaction-logs", async (c) => {
+interactionLogsRoutes.openapi(listLogsRoute, async (c) => {
   const {
     contact_id,
     deal_id,
@@ -135,7 +263,7 @@ interactionLogsRoutes.get("/interaction-logs", async (c) => {
   });
 });
 
-interactionLogsRoutes.get("/interaction-logs/:id", async (c) => {
+interactionLogsRoutes.openapi(getLogRoute, async (c) => {
   const { id } = c.req.param();
 
   const [log] = await db
