@@ -43,6 +43,52 @@ The `@better-auth/api-key` plugin enables per-key rate limiting by default (10 r
 
 ---
 
+## @hono/zod-openapi: Body Consumption Requires `c.req.valid('json')` Over `c.req.json()`
+
+**Date:** 2026-07-01
+**Context:** Sub-prompt 2 — OpenAPI / Zod Refactor
+
+The `@hono/zod-openapi` library automatically adds a body-validation middleware for any route that defines `request.body` in its `createRoute` definition. This middleware consumes the request body stream (via `c.req.json()` internally) to validate it against the Zod schema. After validation, the raw body stream is locked/disturbed, and subsequent calls to `c.req.json()` or `c.req.raw.body` in the handler will fail with `TypeError: Response body object should not be disturbed or locked`.
+
+**This affects every route handler that reads a JSON body.** All handlers must use `c.req.valid('json')` instead of the more typical `c.req.json()` to access the already-parsed body.
+
+For routes that proxy the raw request body to another handler (e.g., `/auth/register` and `/auth/login` forward to Better Auth), the body must be reconstructed from the validated data:
+
+```ts
+const body = c.req.valid('json');
+const proxyRequest = new Request(url, {
+  method: 'POST',
+  headers: c.req.raw.headers,
+  body: JSON.stringify(body),    // re-serialize from validated data
+});
+```
+
+The original `c.req.raw.body` stream is no longer available at this point.
+
+---
+
+## Lenient Zod Schemas to Preserve Handler Validation
+
+**Date:** 2026-07-01
+**Context:** Sub-prompt 2 — OpenAPI / Zod Refactor
+
+The spec required that existing validation error messages be preserved exactly (`{ error: "Name is required" }`, `{ error: "Title is required" }`, etc.). Since `@hono/zod-openapi` auto-validates requests against the route's Zod schema before the handler runs, any Zod field marked as required would reject the request with a generic Zod error before the handler could produce its specific message.
+
+**The chosen pattern:** Request body fields that the handler validates manually are typed as `z.string().optional()` (never `z.string()` or `z.enum()`) in the Zod schema. The actual allowed values are documented via `.openapi()` annotations:
+
+```ts
+// Zod accepts anything (or nothing) — handler does the real check
+stage: z.string().optional().openapi({
+  enum: ['new', 'qualified', 'won', 'lost'],
+  example: 'new',
+  description: 'Deal stage',
+}),
+```
+
+This keeps the OpenAPI spec accurate while letting the handler produce its own error messages. The tradeoff is that the Zod schema does not enforce the constraints it documents — they are purely informational for spec consumers. If stricter server-side validation is desired in the future (and the error format is acceptable to consumers), fields can be tightened to `z.enum()` or `z.string().min(1)` and the corresponding handler checks removed.
+
+---
+
 ## Placeholder for Future Entries
 
 Future specs or fixes that introduce similar documented tradeoffs should be added here going forward rather than left only in spec files or chat history.
